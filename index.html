@@ -1,0 +1,724 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CDC Opioid Prescribing Guideline Assistant</title>
+<meta name="description" content="Clinical decision-support chatbot grounded in the CDC 2022 Clinical Practice Guideline for Prescribing Opioids for Pain.">
+<style>
+/* ============================================================
+   1. DESIGN TOKENS — Clinical Authority Palette
+   ============================================================ */
+:root{
+  --navy-950:#071A33;
+  --navy-900:#0A2647;
+  --navy-800:#144272;
+  --navy-700:#205295;
+  --teal-500:#0F9E96;
+  --teal-400:#2CA6A4;
+  --teal-100:#E4F5F4;
+  --amber-500:#C97A1E;      /* disclaimer / caution accent, not red-alarmist */
+  --white:#FFFFFF;
+  --ink-900:#101826;
+  --ink-600:#455066;
+  --ink-400:#7C879B;
+  --line:#DDE6EE;
+  --bg-app:#F3F7FA;
+  --bg-card: rgba(255,255,255,0.72);
+  --bg-card-solid:#FFFFFF;
+  --shadow-1: 0 1px 2px rgba(10,38,71,0.06), 0 8px 24px -8px rgba(10,38,71,0.18);
+  --shadow-2: 0 30px 60px -25px rgba(10,38,71,0.35);
+  --radius-lg: 22px;
+  --radius-md: 14px;
+  --radius-sm: 10px;
+  --font-display: 'Source Serif 4', Georgia, 'Times New Roman', serif;
+  --font-body: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, Consolas, monospace;
+}
+
+[data-theme="dark"]{
+  --bg-app:#081426;
+  --bg-card: rgba(20,34,58,0.66);
+  --bg-card-solid:#0F2038;
+  --ink-900:#EAF1F8;
+  --ink-600:#B7C4D6;
+  --ink-400:#7E8CA3;
+  --line:#1F3350;
+  --teal-100:#0F2E2C;
+  --shadow-1: 0 1px 2px rgba(0,0,0,0.3), 0 8px 24px -8px rgba(0,0,0,0.5);
+  --shadow-2: 0 30px 60px -25px rgba(0,0,0,0.7);
+}
+
+*,*::before,*::after{ box-sizing:border-box; }
+html,body{ height:100%; }
+body{
+  margin:0;
+  font-family:var(--font-body);
+  background:
+    radial-gradient(1200px 600px at 15% -10%, var(--teal-100), transparent 60%),
+    radial-gradient(1000px 500px at 110% 10%, rgba(20,66,114,0.10), transparent 55%),
+    var(--bg-app);
+  color:var(--ink-900);
+  min-height:100vh;
+  display:flex;
+  flex-direction:column;
+  transition:background .35s ease,color .35s ease;
+}
+@media (prefers-reduced-motion:no-preference){
+  body{ scroll-behavior:smooth; }
+}
+::selection{ background:var(--teal-400); color:#fff; }
+
+/* ============================================================
+   2. HEADER
+   ============================================================ */
+.site-header{
+  display:flex; align-items:center; justify-content:space-between;
+  gap:16px;
+  padding:16px clamp(16px,4vw,40px);
+  border-bottom:1px solid var(--line);
+  background:var(--bg-card);
+  backdrop-filter:blur(14px) saturate(140%);
+  -webkit-backdrop-filter:blur(14px) saturate(140%);
+  position:sticky; top:0; z-index:50;
+}
+.brand{ display:flex; align-items:center; gap:14px; min-width:0; }
+.brand-mark{
+  width:44px; height:44px; flex:none; border-radius:12px;
+  background:linear-gradient(155deg,var(--navy-900),var(--navy-700));
+  display:grid; place-items:center;
+  box-shadow:var(--shadow-1);
+  transform-style:preserve-3d;
+}
+.brand-mark svg{ width:24px; height:24px; }
+.brand-text h1{
+  margin:0; font-family:var(--font-display); font-size:17px; font-weight:600;
+  letter-spacing:.1px; line-height:1.25; color:var(--ink-900);
+}
+.brand-text p{
+  margin:2px 0 0; font-size:12.5px; color:var(--ink-400); letter-spacing:.2px;
+}
+.brand-text .agency-tag{
+  display:inline-flex; align-items:center; gap:6px;
+  font-size:10.5px; font-weight:700; letter-spacing:.6px; text-transform:uppercase;
+  color:var(--teal-500); margin-top:4px;
+}
+.brand-text .agency-tag::before{
+  content:''; width:6px; height:6px; border-radius:50%; background:var(--teal-500);
+}
+.header-actions{ display:flex; align-items:center; gap:10px; flex:none; }
+.theme-toggle{
+  width:40px; height:40px; border-radius:50%;
+  border:1px solid var(--line); background:var(--bg-card-solid);
+  cursor:pointer; display:grid; place-items:center; color:var(--ink-600);
+  transition:transform .25s ease, box-shadow .25s ease;
+}
+.theme-toggle:hover{ transform:translateY(-2px); box-shadow:var(--shadow-1); }
+.theme-toggle svg{ width:18px; height:18px; }
+.theme-toggle .icon-moon{ display:none; }
+[data-theme="dark"] .theme-toggle .icon-sun{ display:none; }
+[data-theme="dark"] .theme-toggle .icon-moon{ display:block; }
+
+/* ============================================================
+   3. MAIN / HERO — 3D floating medical glyph
+   ============================================================ */
+main{ flex:1; display:flex; flex-direction:column; align-items:center; }
+
+.hero{
+  width:100%; max-width:900px; padding:clamp(28px,5vw,52px) 20px 8px;
+  text-align:center;
+  perspective:1200px;
+}
+.hero-glyph{
+  width:84px; height:84px; margin:0 auto 18px;
+  position:relative; transform-style:preserve-3d;
+  animation:float-glyph 6s ease-in-out infinite;
+}
+@keyframes float-glyph{
+  0%,100%{ transform:translateY(0) rotateX(8deg) rotateY(-10deg); }
+  50%{ transform:translateY(-10px) rotateX(-4deg) rotateY(10deg); }
+}
+.hero-glyph .face{
+  position:absolute; inset:0; border-radius:20px;
+  background:linear-gradient(150deg, var(--navy-800), var(--navy-950));
+  box-shadow:0 20px 40px -12px rgba(10,38,71,0.45), inset 0 1px 0 rgba(255,255,255,0.12);
+  display:grid; place-items:center;
+  backdrop-filter:blur(6px);
+}
+.hero-glyph .face.back{
+  transform:translateZ(-14px) scale(.94);
+  background:linear-gradient(150deg, var(--teal-500), var(--navy-800));
+  opacity:.55;
+}
+.hero-glyph .face.front svg{ width:40px; height:40px; }
+.hero h2{
+  font-family:var(--font-display); font-weight:600;
+  font-size:clamp(22px,3.4vw,32px); margin:0 0 10px; color:var(--ink-900);
+  letter-spacing:.1px;
+}
+.hero p{
+  max-width:560px; margin:0 auto; color:var(--ink-600); font-size:14.5px; line-height:1.65;
+}
+.hero .badge-row{
+  display:flex; flex-wrap:wrap; gap:8px; justify-content:center; margin-top:16px;
+}
+.badge{
+  font-size:11.5px; font-weight:600; color:var(--navy-800);
+  background:var(--teal-100); border:1px solid rgba(15,158,150,0.25);
+  padding:5px 12px; border-radius:999px; letter-spacing:.2px;
+}
+[data-theme="dark"] .badge{ color:var(--teal-400); }
+
+/* ============================================================
+   4. CHAT CONTAINER — 3D depth card + tilt
+   ============================================================ */
+.chat-wrap{
+  width:100%; max-width:820px; padding:20px clamp(12px,3vw,20px) 28px;
+  perspective:1400px;
+}
+.chat-card{
+  position:relative;
+  border-radius:var(--radius-lg);
+  background:var(--bg-card);
+  backdrop-filter:blur(20px) saturate(160%);
+  -webkit-backdrop-filter:blur(20px) saturate(160%);
+  border:1px solid var(--line);
+  box-shadow:var(--shadow-2);
+  display:flex; flex-direction:column;
+  height:min(64vh,620px);
+  transform-style:preserve-3d;
+  transition:transform .12s ease-out, box-shadow .3s ease;
+  overflow:hidden;
+}
+.chat-card::before{
+  content:''; position:absolute; inset:0; border-radius:inherit; padding:1px;
+  background:linear-gradient(160deg, rgba(255,255,255,.5), rgba(44,166,164,.25) 40%, transparent 70%);
+  -webkit-mask:linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  -webkit-mask-composite:xor; mask-composite:exclude;
+  pointer-events:none;
+}
+
+.chat-header{
+  display:flex; align-items:center; justify-content:space-between;
+  padding:14px 18px; border-bottom:1px solid var(--line);
+  background:linear-gradient(180deg, rgba(255,255,255,.5), transparent);
+}
+.chat-header .status{ display:flex; align-items:center; gap:8px; font-size:12.5px; color:var(--ink-600); font-weight:600; }
+.dot-online{ width:8px; height:8px; border-radius:50%; background:var(--teal-500); box-shadow:0 0 0 3px rgba(15,158,150,.18); }
+.chat-header .clear-btn{
+  border:none; background:transparent; color:var(--ink-400); font-size:12px; cursor:pointer;
+  padding:6px 10px; border-radius:8px; font-weight:600;
+}
+.chat-header .clear-btn:hover{ background:var(--teal-100); color:var(--teal-500); }
+
+.messages{
+  flex:1; overflow-y:auto; padding:20px 18px; display:flex; flex-direction:column; gap:14px;
+  scroll-behavior:smooth;
+}
+.messages::-webkit-scrollbar{ width:8px; }
+.messages::-webkit-scrollbar-thumb{ background:var(--line); border-radius:8px; }
+
+.msg{
+  max-width:82%; display:flex; gap:10px; align-items:flex-end;
+  animation:slide-in .38s cubic-bezier(.2,.8,.2,1) both;
+}
+@keyframes slide-in{
+  from{ opacity:0; transform:translateY(16px) translateZ(-20px) scale(.98); }
+  to{ opacity:1; transform:translateY(0) translateZ(0) scale(1); }
+}
+.msg.bot{ align-self:flex-start; }
+.msg.user{ align-self:flex-end; flex-direction:row-reverse; }
+
+.avatar{
+  width:30px; height:30px; border-radius:9px; flex:none;
+  display:grid; place-items:center; color:#fff; font-size:13px; font-weight:700;
+  box-shadow:var(--shadow-1);
+}
+.msg.bot .avatar{ background:linear-gradient(155deg,var(--navy-800),var(--navy-950)); }
+.msg.user .avatar{ background:linear-gradient(155deg,var(--teal-400),var(--teal-500)); }
+
+.bubble{
+  padding:12px 15px; border-radius:var(--radius-md);
+  font-size:14px; line-height:1.62; color:var(--ink-900);
+  box-shadow:0 1px 1px rgba(10,38,71,.04), 0 10px 20px -12px rgba(10,38,71,.25);
+  position:relative;
+}
+.msg.bot .bubble{
+  background:var(--bg-card-solid); border:1px solid var(--line);
+  border-bottom-left-radius:4px;
+}
+.msg.user .bubble{
+  background:linear-gradient(155deg,var(--navy-800),var(--navy-900));
+  color:#F4F9FB; border-bottom-right-radius:4px;
+}
+.bubble p{ margin:0 0 8px; }
+.bubble p:last-child{ margin-bottom:0; }
+.bubble ul{ margin:6px 0; padding-inline-start:20px; }
+.bubble li{ margin:4px 0; }
+.bubble strong{ font-weight:700; }
+.bubble code{
+  font-family:var(--font-mono); font-size:12.5px;
+  background:rgba(15,158,150,.12); padding:1px 5px; border-radius:5px;
+}
+.bubble .src-tag{
+  display:inline-block; margin-top:8px; font-size:10.5px; font-weight:700;
+  color:var(--teal-500); letter-spacing:.3px; text-transform:uppercase;
+}
+
+.typing{ align-self:flex-start; display:flex; gap:10px; align-items:flex-end; }
+.typing .bubble{ display:flex; gap:4px; padding:14px 16px; }
+.typing .dot{
+  width:6px; height:6px; border-radius:50%; background:var(--ink-400);
+  animation:bounce 1.2s infinite ease-in-out;
+}
+.typing .dot:nth-child(2){ animation-delay:.15s; }
+.typing .dot:nth-child(3){ animation-delay:.3s; }
+@keyframes bounce{
+  0%,60%,100%{ transform:translateY(0); opacity:.5; }
+  30%{ transform:translateY(-5px); opacity:1; }
+}
+
+.error-banner{
+  align-self:center; font-size:12.5px; color:var(--amber-500);
+  background:rgba(201,122,30,.1); border:1px solid rgba(201,122,30,.3);
+  padding:8px 14px; border-radius:10px; max-width:90%; text-align:center;
+}
+
+/* Quick replies */
+.quick-replies{
+  display:flex; flex-wrap:wrap; gap:8px; padding:0 18px 14px;
+}
+.quick-chip{
+  font-size:12.5px; font-weight:600; color:var(--navy-800);
+  background:var(--teal-100); border:1px solid rgba(15,158,150,.25);
+  padding:8px 13px; border-radius:999px; cursor:pointer;
+  transition:transform .18s ease, box-shadow .18s ease;
+  white-space:nowrap;
+}
+[data-theme="dark"] .quick-chip{ color:var(--teal-400); }
+.quick-chip:hover{ transform:translateY(-2px); box-shadow:var(--shadow-1); }
+
+/* Input row */
+.input-row{
+  display:flex; align-items:flex-end; gap:10px;
+  padding:14px 16px; border-top:1px solid var(--line);
+  background:linear-gradient(0deg, rgba(255,255,255,.55), transparent);
+}
+.input-row textarea{
+  flex:1; resize:none; max-height:110px; min-height:44px;
+  border:1px solid var(--line); border-radius:var(--radius-sm);
+  padding:11px 14px; font-family:var(--font-body); font-size:14px;
+  background:var(--bg-card-solid); color:var(--ink-900);
+  outline:none; transition:border-color .2s ease, box-shadow .2s ease;
+}
+.input-row textarea:focus{
+  border-color:var(--teal-500); box-shadow:0 0 0 3px rgba(15,158,150,.18);
+}
+.send-btn{
+  width:44px; height:44px; border-radius:12px; border:none; flex:none;
+  background:linear-gradient(155deg,var(--teal-400),var(--teal-500));
+  color:#fff; display:grid; place-items:center; cursor:pointer;
+  box-shadow:0 10px 20px -8px rgba(15,158,150,.55);
+  transition:transform .15s ease, opacity .2s ease;
+}
+.send-btn:hover{ transform:translateY(-2px) scale(1.03); }
+.send-btn:disabled{ opacity:.5; cursor:not-allowed; transform:none; }
+.send-btn svg{ width:19px; height:19px; }
+
+/* ============================================================
+   5. FOOTER / DISCLAIMER
+   ============================================================ */
+.site-footer{
+  width:100%; max-width:820px; margin:0 auto; padding:0 20px 34px;
+  text-align:center;
+}
+.disclaimer{
+  display:flex; gap:10px; align-items:flex-start; text-align:left;
+  font-size:12px; line-height:1.6; color:var(--ink-600);
+  background:var(--bg-card); border:1px solid var(--line);
+  padding:14px 16px; border-radius:var(--radius-sm);
+  backdrop-filter:blur(10px);
+}
+.disclaimer svg{ width:18px; height:18px; flex:none; color:var(--amber-500); margin-top:1px; }
+.disclaimer strong{ color:var(--ink-900); }
+.footer-meta{ margin-top:12px; font-size:11px; color:var(--ink-400); }
+
+/* Focus visibility (accessibility) */
+button:focus-visible, textarea:focus-visible, .quick-chip:focus-visible{
+  outline:2px solid var(--teal-500); outline-offset:2px;
+}
+
+/* Responsive */
+@media (max-width:560px){
+  .chat-card{ height:70vh; border-radius:16px; }
+  .hero{ padding-top:20px; }
+  .hero-glyph{ width:64px; height:64px; }
+  .msg{ max-width:92%; }
+  .disclaimer{ flex-direction:row; }
+}
+
+@media (prefers-reduced-motion:reduce){
+  .hero-glyph, .msg, .typing .dot{ animation:none !important; }
+  .chat-card{ transition:none !important; }
+}
+</style>
+</head>
+<body>
+
+<!-- ============================================================
+     HEADER
+     ============================================================ -->
+<header class="site-header">
+  <div class="brand">
+    <div class="brand-mark">
+      <!-- CDC / medical cross placeholder mark -->
+      <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <rect x="9.5" y="3" width="5" height="18" rx="1.4" fill="#fff"/>
+        <rect x="3" y="9.5" width="18" height="5" rx="1.4" fill="#fff"/>
+      </svg>
+    </div>
+    <div class="brand-text">
+      <h1>CDC Opioid Prescribing Guideline Assistant</h1>
+      <p>Evidence-based answers from the 2022 Clinical Practice Guideline</p>
+      <span class="agency-tag">Grounded in CDC MMWR 2022 · RAG-powered</span>
+    </div>
+  </div>
+  <div class="header-actions">
+    <button class="theme-toggle" id="themeToggle" aria-label="Toggle dark mode" title="Toggle dark / light mode">
+      <svg class="icon-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="4.5"/><path d="M12 2v2M12 20v2M4.2 4.2l1.4 1.4M18.4 18.4l1.4 1.4M2 12h2M20 12h2M4.2 19.8l1.4-1.4M18.4 5.6l1.4-1.4"/></svg>
+      <svg class="icon-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.6A9 9 0 1 1 11.4 3 7 7 0 0 0 21 12.6Z"/></svg>
+    </button>
+  </div>
+</header>
+
+<main>
+  <!-- ============================================================
+       HERO — 3D floating glyph
+       ============================================================ -->
+  <section class="hero">
+    <div class="hero-glyph" aria-hidden="true">
+      <div class="face back"></div>
+      <div class="face front">
+        <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <rect x="9.5" y="3" width="5" height="18" rx="1.4" fill="#EAF7F6"/>
+          <rect x="3" y="9.5" width="18" height="5" rx="1.4" fill="#EAF7F6"/>
+        </svg>
+      </div>
+    </div>
+    <h2>Ask about safe, evidence-based opioid prescribing</h2>
+    <p>This assistant answers clinician questions using retrieval-augmented generation over the CDC's 2022 Clinical Practice Guideline for Prescribing Opioids for Pain. It does not replace clinical judgment.</p>
+    <div class="badge-row">
+      <span class="badge">12 Recommendations</span>
+      <span class="badge">Chronic &amp; Acute Pain</span>
+      <span class="badge">Risk Mitigation</span>
+    </div>
+  </section>
+
+  <!-- ============================================================
+       CHAT CONTAINER
+       ============================================================ -->
+  <section class="chat-wrap">
+    <div class="chat-card" id="chatCard">
+      <div class="chat-header">
+        <div class="status"><span class="dot-online"></span> Assistant online</div>
+        <button class="clear-btn" id="clearBtn">Clear chat</button>
+      </div>
+
+      <div class="messages" id="messages" role="log" aria-live="polite">
+        <div class="msg bot">
+          <div class="avatar">CDC</div>
+          <div class="bubble">
+            <p>Hi, I'm your CDC Opioid Guideline assistant. Ask me about dosage thresholds, non-opioid therapies, tapering, or risk mitigation strategies from the 2022 guideline.</p>
+            <span class="src-tag">Source: CDC MMWR 2022;71(No. RR-3)</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="quick-replies" id="quickReplies">
+        <button class="quick-chip" type="button">What are the recommended dosage limits?</button>
+        <button class="quick-chip" type="button">When is urine drug testing recommended?</button>
+        <button class="quick-chip" type="button">What non-pharmacological therapies are preferred first?</button>
+      </div>
+
+      <div class="input-row">
+        <textarea id="userInput" rows="1" placeholder="Type a clinical question…" aria-label="Message"></textarea>
+        <button class="send-btn" id="sendBtn" aria-label="Send message">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 2 11 13"/><path d="M22 2 15 22l-4-9-9-4 20-7Z"/></svg>
+        </button>
+      </div>
+    </div>
+  </section>
+</main>
+
+<!-- ============================================================
+     FOOTER / DISCLAIMER
+     ============================================================ -->
+<footer class="site-footer">
+  <div class="disclaimer">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 9v4M12 17h.01M10.3 3.9 2.6 17a2 2 0 0 0 1.7 3h15.4a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z"/></svg>
+    <p><strong>Medical disclaimer:</strong> This tool provides general information drawn from the CDC 2022 Clinical Practice Guideline for Prescribing Opioids for Pain. It is <strong>not a substitute for professional medical advice, diagnosis, or treatment</strong>. Always consult a qualified clinician for patient-specific decisions.</p>
+  </div>
+  <p class="footer-meta">Reference: Dowell D, Ragan KR, Jones CM, Baldwin GT, Chou R. CDC Clinical Practice Guideline for Prescribing Opioids for Pain — United States, 2022. MMWR Recomm Rep 2022;71(No. RR-3):1–95.</p>
+</footer>
+
+<script>
+/* ============================================================
+   CONFIG — set your n8n webhook URL here
+   ============================================================ */
+const N8N_WEBHOOK_URL = "YOUR_N8N_WEBHOOK_URL"; // e.g. https://your-n8n-instance.com/webhook/cdc-opioid-chat
+const REQUEST_TIMEOUT_MS = 25000;
+
+/* ============================================================
+   THEME TOGGLE
+   ============================================================ */
+const root = document.documentElement;
+const themeToggle = document.getElementById('themeToggle');
+const savedTheme = localStorage.getItem('cdc-chat-theme');
+if (savedTheme) root.setAttribute('data-theme', savedTheme);
+themeToggle.addEventListener('click', () => {
+  const next = root.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
+  root.setAttribute('data-theme', next);
+  localStorage.setItem('cdc-chat-theme', next);
+});
+
+/* ============================================================
+   3D PARALLAX TILT ON CHAT CARD
+   ============================================================ */
+const chatCard = document.getElementById('chatCard');
+const isCoarsePointer = window.matchMedia('(pointer: coarse)').matches;
+const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+if (!isCoarsePointer && !reduceMotion) {
+  const MAX_TILT = 3.5; // degrees, kept subtle for a clinical (not gimmicky) feel
+  chatCard.addEventListener('mousemove', (e) => {
+    const rect = chatCard.getBoundingClientRect();
+    const px = (e.clientX - rect.left) / rect.width - 0.5;
+    const py = (e.clientY - rect.top) / rect.height - 0.5;
+    chatCard.style.transform =
+      `rotateX(${(-py * MAX_TILT).toFixed(2)}deg) rotateY(${(px * MAX_TILT).toFixed(2)}deg) translateZ(0)`;
+  });
+  chatCard.addEventListener('mouseleave', () => {
+    chatCard.style.transform = 'rotateX(0deg) rotateY(0deg)';
+  });
+}
+
+/* ============================================================
+   DOM REFS
+   ============================================================ */
+const messagesEl = document.getElementById('messages');
+const inputEl = document.getElementById('userInput');
+const sendBtn = document.getElementById('sendBtn');
+const clearBtn = document.getElementById('clearBtn');
+const quickReplies = document.getElementById('quickReplies');
+
+/* ============================================================
+   AUTO-GROW TEXTAREA
+   ============================================================ */
+inputEl.addEventListener('input', () => {
+  inputEl.style.height = 'auto';
+  inputEl.style.height = Math.min(inputEl.scrollHeight, 110) + 'px';
+});
+inputEl.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter' && !e.shiftKey) {
+    e.preventDefault();
+    sendMessage();
+  }
+});
+
+/* ============================================================
+   LIGHTWEIGHT MARKDOWN RENDERER
+   (bold, bullet lists, inline code, paragraphs — no external lib)
+   ============================================================ */
+function renderMarkdown(text) {
+  const escaped = text
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
+
+  const lines = escaped.split('\n');
+  let html = '';
+  let inList = false;
+
+  for (const rawLine of lines) {
+    const line = rawLine.trim();
+    if (/^[-*]\s+/.test(line)) {
+      if (!inList) { html += '<ul>'; inList = true; }
+      html += `<li>${inlineMd(line.replace(/^[-*]\s+/, ''))}</li>`;
+    } else {
+      if (inList) { html += '</ul>'; inList = false; }
+      if (line.length) html += `<p>${inlineMd(line)}</p>`;
+    }
+  }
+  if (inList) html += '</ul>';
+  return html || `<p>${inlineMd(escaped)}</p>`;
+}
+function inlineMd(str) {
+  return str
+    .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+    .replace(/`(.+?)`/g, '<code>$1</code>');
+}
+
+/* ============================================================
+   MESSAGE RENDERING
+   ============================================================ */
+function appendMessage(role, text, sourceTag) {
+  const wrapper = document.createElement('div');
+  wrapper.className = `msg ${role}`;
+
+  const avatar = document.createElement('div');
+  avatar.className = 'avatar';
+  avatar.textContent = role === 'bot' ? 'CDC' : 'You';
+
+  const bubble = document.createElement('div');
+  bubble.className = 'bubble';
+  bubble.innerHTML = renderMarkdown(text);
+
+  if (sourceTag) {
+    const src = document.createElement('span');
+    src.className = 'src-tag';
+    src.textContent = sourceTag;
+    bubble.appendChild(src);
+  }
+
+  wrapper.appendChild(avatar);
+  wrapper.appendChild(bubble);
+  messagesEl.appendChild(wrapper);
+  scrollToBottom();
+  return wrapper;
+}
+
+function scrollToBottom() {
+  messagesEl.scrollTo({ top: messagesEl.scrollHeight, behavior: 'smooth' });
+}
+
+let typingEl = null;
+function showTyping() {
+  typingEl = document.createElement('div');
+  typingEl.className = 'msg bot typing';
+  typingEl.innerHTML = `
+    <div class="avatar">CDC</div>
+    <div class="bubble"><span class="dot"></span><span class="dot"></span><span class="dot"></span></div>`;
+  messagesEl.appendChild(typingEl);
+  scrollToBottom();
+}
+function hideTyping() {
+  if (typingEl) { typingEl.remove(); typingEl = null; }
+}
+
+function showError(text) {
+  const el = document.createElement('div');
+  el.className = 'error-banner';
+  el.textContent = text;
+  messagesEl.appendChild(el);
+  scrollToBottom();
+}
+
+/* ============================================================
+   n8n RAG WEBHOOK INTEGRATION
+   Expected request:  POST { message, sessionId, timestamp }
+   Expected response: { reply: string, source?: string }
+   ============================================================ */
+function getSessionId() {
+  let id = sessionStorage.getItem('cdc-chat-session');
+  if (!id) {
+    id = 'sess_' + Math.random().toString(36).slice(2) + Date.now();
+    sessionStorage.setItem('cdc-chat-session', id);
+  }
+  return id;
+}
+
+async function sendMessage(presetText) {
+  const text = (presetText ?? inputEl.value).trim();
+  if (!text || sendBtn.disabled) return;
+
+  appendMessage('user', text);
+  inputEl.value = '';
+  inputEl.style.height = 'auto';
+  setBusy(true);
+  showTyping();
+
+  try {
+    const reply = await callN8nWebhook(text);
+    hideTyping();
+    appendMessage('bot', reply.text, reply.source);
+  } catch (err) {
+    hideTyping();
+    console.error('n8n webhook error:', err);
+    if (err.name === 'AbortError') {
+      showError('The assistant is taking too long to respond. Please try again in a moment.');
+    } else {
+      showError('Something went wrong reaching the assistant. Please check your connection and try again.');
+    }
+  } finally {
+    setBusy(false);
+  }
+}
+
+async function callN8nWebhook(message) {
+  if (!N8N_WEBHOOK_URL || N8N_WEBHOOK_URL === 'YOUR_N8N_WEBHOOK_URL') {
+    // Demo fallback so the UI is testable before the webhook is wired up
+    await new Promise(r => setTimeout(r, 900));
+    return {
+      text: "**Demo mode:** connect `N8N_WEBHOOK_URL` in the script to get live RAG answers from the CDC guideline.",
+      source: 'Demo response'
+    };
+  }
+
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+
+  try {
+    const res = await fetch(N8N_WEBHOOK_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        message,
+        sessionId: getSessionId(),
+        timestamp: new Date().toISOString()
+      }),
+      signal: controller.signal
+    });
+
+    if (!res.ok) throw new Error(`Webhook responded with status ${res.status}`);
+
+    const data = await res.json();
+    return receiveMessage(data);
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+/* Normalizes the n8n response payload into { text, source } */
+function receiveMessage(data) {
+  const payload = Array.isArray(data) ? data[0] : data;
+  const text =
+    payload?.reply ??
+    payload?.output ??
+    payload?.text ??
+    payload?.message ??
+    'No response received from the assistant.';
+  const source = payload?.source ?? payload?.citation ?? null;
+  return { text, source };
+}
+
+function setBusy(isBusy) {
+  sendBtn.disabled = isBusy;
+  inputEl.disabled = isBusy;
+}
+
+/* ============================================================
+   EVENTS
+   ============================================================ */
+sendBtn.addEventListener('click', () => sendMessage());
+clearBtn.addEventListener('click', () => {
+  messagesEl.innerHTML = '';
+  appendMessage('bot', "Chat cleared. Ask me anything about the CDC 2022 opioid prescribing guideline.");
+});
+quickReplies.addEventListener('click', (e) => {
+  const btn = e.target.closest('.quick-chip');
+  if (!btn) return;
+  sendMessage(btn.textContent);
+});
+</script>
+</body>
+</html>
