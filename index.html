@@ -465,7 +465,7 @@ button:focus-visible, textarea:focus-visible, .quick-chip:focus-visible{
 /* ============================================================
    CONFIG — set your n8n webhook URL here
    ============================================================ */
-const N8N_WEBHOOK_URL = "YOUR_N8N_WEBHOOK_URL"; // e.g. https://your-n8n-instance.com/webhook/cdc-opioid-chat
+const N8N_WEBHOOK_URL = "https://salehalaa10545.app.n8n.cloud/webhook/cdc-opioid-chat"; // e.g. https://your-n8n-instance.com/webhook/cdc-opioid-chat
 const REQUEST_TIMEOUT_MS = 25000;
 
 /* ============================================================
@@ -655,7 +655,7 @@ async function sendMessage(presetText) {
 }
 
 async function callN8nWebhook(message) {
-  if (!N8N_WEBHOOK_URL || N8N_WEBHOOK_URL === 'https://salehalaa10545.app.n8n.cloud/webhook/e4e158ed-b960-4cc3-8309-2f44330e498a') {
+  if (!N8N_WEBHOOK_URL || N8N_WEBHOOK_URL === 'https://salehalaa10545.app.n8n.cloud/webhook/cdc-opioid-chat') {
     // Demo fallback so the UI is testable before the webhook is wired up
     await new Promise(r => setTimeout(r, 900));
     return {
