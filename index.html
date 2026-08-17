@@ -465,7 +465,7 @@ button:focus-visible, textarea:focus-visible, .quick-chip:focus-visible{
 /* ============================================================
    CONFIG — set your n8n webhook URL here
    ============================================================ */
-const N8N_WEBHOOK_URL = "https://salehalaa10545.app.n8n.cloud/webhook/cdc-opioid-chat"; // e.g. https://your-n8n-instance.com/webhook/cdc-opioid-chat
+const N8N_WEBHOOK_URL = "https://salehalaa10545.app.n8n.cloud/webhook/cdc-opioid-chat";
 const REQUEST_TIMEOUT_MS = 25000;
 
 /* ============================================================
@@ -655,7 +655,7 @@ async function sendMessage(presetText) {
 }
 
 async function callN8nWebhook(message) {
-  if (!N8N_WEBHOOK_URL || N8N_WEBHOOK_URL === 'https://salehalaa10545.app.n8n.cloud/webhook/cdc-opioid-chat') {
+  if (!N8N_WEBHOOK_URL || N8N_WEBHOOK_URL === 'YOUR_N8N_WEBHOOK_URL') {
     // Demo fallback so the UI is testable before the webhook is wired up
     await new Promise(r => setTimeout(r, 900));
     return {
@@ -681,8 +681,20 @@ async function callN8nWebhook(message) {
 
     if (!res.ok) throw new Error(`Webhook responded with status ${res.status}`);
 
-    const data = await res.json();
-    return receiveMessage(data);
+    const rawText = await res.text();
+    if (!rawText || !rawText.trim()) {
+      return {
+        text: 'The assistant is active, but the webhook returned an empty response. Please check the n8n workflow output.',
+        source: 'n8n webhook'
+      };
+    }
+
+    try {
+      const data = JSON.parse(rawText);
+      return receiveMessage(data);
+    } catch {
+      return { text: rawText, source: 'n8n webhook response' };
+    }
   } finally {
     clearTimeout(timeout);
   }
@@ -690,6 +702,8 @@ async function callN8nWebhook(message) {
 
 /* Normalizes the n8n response payload into { text, source } */
 function receiveMessage(data) {
+  if (typeof data === 'string') return { text: data, source: 'n8n webhook response' };
+
   const payload = Array.isArray(data) ? data[0] : data;
   const text =
     payload?.reply ??
