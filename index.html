@@ -655,7 +655,7 @@ async function sendMessage(presetText) {
 }
 
 async function callN8nWebhook(message) {
-  if (!N8N_WEBHOOK_URL || N8N_WEBHOOK_URL === 'YOUR_N8N_WEBHOOK_URL') {
+  if (!N8N_WEBHOOK_URL || N8N_WEBHOOK_URL === 'https://salehalaa10545.app.n8n.cloud/webhook/e4e158ed-b960-4cc3-8309-2f44330e498a') {
     // Demo fallback so the UI is testable before the webhook is wired up
     await new Promise(r => setTimeout(r, 900));
     return {
